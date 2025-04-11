@@ -257,7 +257,7 @@ class TruthSocialMonitor:
             
             msg.attach(MIMEText(body, 'html'))
             
-            server = smtplib.SMTP('smtp.gmail.com', 25)
+            server = smtplib.SMTP('smtp.gmail.com', 587)
             server.starttls()
             server.login(GMAIL_USER, GMAIL_PASSWORD)
             server.sendmail(GMAIL_USER, self.recipients, msg.as_string())
