@@ -76,9 +76,18 @@ class TruthSocialMonitor:
         
         return intersection / union if union > 0 else 0
 
-    def _is_similar_content(self, new_content, existing_contents, threshold=0.75):
+    def _is_similar_content(self, new_content, existing_contents, threshold=0.7):
+        def _clean_content(_content: str):
+            tokens = _content.split(" ")
+            if len(tokens) > 3:
+                return " ".join(tokens[:-3])
+            else:
+                return _content
+        new_content = _clean_content(new_content)
+
         """檢查新內容是否與現有內容相似"""
         for content in existing_contents:
+            content = _clean_content(content)
             similarity = self._calculate_jaccard_similarity(new_content, content)
             if similarity >= threshold:
                 return True
