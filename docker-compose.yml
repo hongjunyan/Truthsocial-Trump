@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  monitor:
+    build: .
+    container_name: trump-truth-social-monitor
+    volumes:
+      - ./data:/app/data
+      - ./monitor.py:/app/monitor.py
+      - ./recipients.txt:/app/recipients.txt
+    env_file:
+      - .env
+    restart: unless-stopped 

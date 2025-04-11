@@ -1,0 +1,6 @@
+# 環境變數
+.env
+recipients.txt
+__pycache__
+*.ipynb
+# 其他已有的內容
