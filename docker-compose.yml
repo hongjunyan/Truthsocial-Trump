@@ -10,4 +10,6 @@ services:
       - ./recipients.txt:/app/recipients.txt
     env_file:
       - .env
+    environment:
+      - TZ=Asia/Taipei
     restart: unless-stopped 
