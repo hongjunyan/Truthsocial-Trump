@@ -548,10 +548,10 @@ def main():
     def scheduled_check():
         monitor.check_and_notify()
 
-    # 設置定時任務：每15分鐘執行一次
-    schedule.every(15).minutes.do(scheduled_check)
+    # 設置定時任務：每小時的第01分鐘執行
+    schedule.every().hour.at(":01").do(scheduled_check)
 
-    logger.info("監控服務已啟動，將每15分鐘執行一次檢查")
+    logger.info("監控服務已啟動，將在每小時的第01分鐘執行檢查")
     
     # 保持程序運行並執行定時任務
     while True:
