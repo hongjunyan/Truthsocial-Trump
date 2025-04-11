@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 import urllib.parse
+import random
 
 import schedule
 from playwright.sync_api import sync_playwright
@@ -274,31 +275,111 @@ class TruthSocialMonitor:
         
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
+                # 使用更擬人化的瀏覽器設定
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--disable-blink-features=AutomationControlled',
+                        '--disable-features=IsolateOrigins,site-per-process',
+                        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+                    ]
+                )
+                
                 context = browser.new_context(
                     viewport={"width": 1920, "height": 1080},
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                    locale="en-US",
+                    timezone_id="America/New_York",
+                    permissions=["geolocation"],
+                    has_touch=False,
+                    # 添加額外的HTTP頭部
+                    extra_http_headers={
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.5",
+                        "Accept-Encoding": "gzip, deflate, br",
+                        "DNT": "1",
+                        "Connection": "keep-alive",
+                        "Upgrade-Insecure-Requests": "1",
+                        "Sec-Fetch-Dest": "document",
+                        "Sec-Fetch-Mode": "navigate",
+                        "Sec-Fetch-Site": "none",
+                        "Sec-Fetch-User": "?1",
+                        "Pragma": "no-cache",
+                        "Cache-Control": "no-cache",
+                    }
                 )
+                
+                # 添加模擬真實用戶的JavaScript
+                context.add_init_script("""
+                    // 覆蓋 navigator.webdriver
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => false,
+                    });
+                    
+                    // 覆蓋其他可能被檢測的屬性
+                    window.navigator.chrome = {
+                        runtime: {},
+                    };
+                    
+                    // 添加隨機鼠標移動函數
+                    const originalQuery = document.querySelector;
+                    document.querySelector = function() {
+                        // 添加一些隨機延遲
+                        return originalQuery.apply(document, arguments);
+                    };
+                """)
                 
                 page = context.new_page()
                 
-                # 訪問頁面
-                logger.info(f"訪問 {TRUTH_SOCIAL_URL}")
-                page.goto(TRUTH_SOCIAL_URL, wait_until="networkidle", timeout=60000)
-                logger.info("頁面已加載，等待內容顯示...")
+                # 模擬真實用戶行為
+                # 先訪問一個常見網站，然後再訪問目標網站
+                logger.info("先訪問 Google 再訪問目標網站...")
+                page.goto("https://www.google.com", wait_until="networkidle")
+                page.wait_for_timeout(3000)  # 隨機等待 3 秒
                 
-                # 等待頁面加載
-                page.wait_for_timeout(5000)
+                # 處理 cookie 同意對話框
+                try:
+                    if page.query_selector("button:has-text('Accept all')"):
+                        page.click("button:has-text('Accept all')")
+                        page.wait_for_timeout(1000)
+                except:
+                    pass
+                
+                # 使用更加人性化的方式訪問目標網站
+                logger.info(f"訪問 {TRUTH_SOCIAL_URL}")
+                page.goto(TRUTH_SOCIAL_URL, wait_until="domcontentloaded", timeout=60000)
+                
+                # 隨機等待以模擬人類行為
+                wait_time = 3000 + (1000 * (2 * (random.random() - 0.5)))
+                page.wait_for_timeout(wait_time)
+                
+                # 模擬滑鼠隨機移動和滾動
+                page.mouse.move(random.randint(100, 700), random.randint(100, 500))
+                
+                # 等待更長時間讓頁面完全加載
+                page.wait_for_load_state("networkidle", timeout=60000)
+                logger.info("頁面已加載，等待內容顯示...")
                 
                 # 保存初始頁面截圖
                 page.screenshot(path=os.path.join(DEBUG_DIR, "initial_page.png"))
                 
                 # 處理 cookie 接受按鈕
-                accept_button = page.query_selector("button:has-text('Accept')")
-                if accept_button:
-                    logger.info("點擊接受 cookie 按鈕")
-                    accept_button.click()
-                    page.wait_for_timeout(2000)
+                try:
+                    accept_button = page.query_selector("button:has-text('Accept')")
+                    if accept_button:
+                        logger.info("點擊接受 cookie 按鈕")
+                        accept_button.click()
+                        page.wait_for_timeout(2000)
+                except:
+                    pass
+                
+                # 檢查是否遇到 Cloudflare 挑戰頁面
+                if "Cloudflare" in page.title():
+                    logger.warning("遇到 Cloudflare 挑戰頁面，嘗試等待更長時間...")
+                    # 保存 Cloudflare 頁面以供分析
+                    page.screenshot(path=os.path.join(DEBUG_DIR, "cloudflare_challenge.png"))
+                    # 等待更長時間允許 Cloudflare 檢查完成
+                    page.wait_for_timeout(30000)  # 等待 30 秒
                 
                 # 收集初始頁面的貼文
                 initial_posts = self._extract_posts_from_page(page, "initial")
@@ -309,8 +390,10 @@ class TruthSocialMonitor:
                 # 滾動頁面收集更多貼文
                 for i in range(3):
                     logger.info(f"第 {i+1} 次滾動")
-                    page.evaluate("window.scrollBy(0, 800)")
-                    page.wait_for_timeout(3000)  # 給頁面足夠時間加載新內容
+                    # 使用更自然的滾動
+                    page.evaluate("window.scrollBy({top: 800, left: 0, behavior: 'smooth'})")
+                    # 隨機等待時間
+                    page.wait_for_timeout(2000 + random.randint(500, 2000))
                     
                     # 截圖當前頁面
                     page.screenshot(path=os.path.join(DEBUG_DIR, f"scroll_{i+1}.png"))
@@ -452,19 +535,14 @@ def main():
     # 首次啟動立即運行一次
     monitor.check_and_notify()
     
-    # 定義檢查函數，會先確認當前時間是否在允許的時段
+    # 定義檢查函數
     def scheduled_check():
-        current_hour = datetime.now().hour
-        # 如果當前時間是晚上10點到早上6點之間，跳過檢查
-        if 22 <= current_hour or current_hour < 6:
-            logger.info("當前處於夜間休息時段（晚上10點至早上6點），跳過檢查")
-            return
         monitor.check_and_notify()
     
     # 設置定時任務：每小時的第01分鐘執行
     schedule.every().hour.at(":01").do(scheduled_check)
     
-    logger.info("監控服務已啟動，將在每小時的第01分鐘執行檢查，晚上10點至早上6點期間不執行")
+    logger.info("監控服務已啟動，將在每小時的第01分鐘執行檢查")
     
     # 保持程序運行並執行定時任務
     while True:
