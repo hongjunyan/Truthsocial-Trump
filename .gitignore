@@ -3,4 +3,5 @@
 recipients.txt
 __pycache__
 *.ipynb
+.idea
 # 其他已有的內容
