@@ -17,7 +17,7 @@ from playwright.sync_api import sync_playwright
 from config import (CHECK_INTERVAL_MINUTES, DATA_FILE, GMAIL_PASSWORD,
                    GMAIL_USER, RECIPIENT_EMAIL, TRUTH_SOCIAL_URL)
 
-# 設置日誌
+# 設定日誌
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -25,44 +25,44 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 調試文件保存目錄
+# 全域目錄
 DEBUG_DIR = "debug"
-DATA_DIR = "data"  # 數據保存目錄
+DATA_DIR = "data"  # 資料儲存目錄
 
 class TruthSocialMonitor:
     def __init__(self):
         self.data_file = DATA_FILE
         self.seen_posts = self._load_seen_posts()
         self._create_directories()
-        # 載入收件人列表
+        # 載入收件人清單
         self.recipients = self._load_recipients()
         logger.info(f"已載入 {len(self.recipients)} 個收件人: {', '.join(self.recipients)}")
     
     def _create_directories(self):
-        """創建必要的目錄"""
+        """建立必要的目錄"""
         for directory in [DEBUG_DIR, DATA_DIR]:
             if not os.path.exists(directory):
                 os.makedirs(directory)
-                logger.info(f"創建目錄: {directory}")
+                logger.info(f"建立目錄: {directory}")
     
     def _load_seen_posts(self):
-        """加載已經發送通知的貼文ID"""
+        """載入已經發送通知的貼文ID"""
         if os.path.exists(self.data_file):
             try:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except json.JSONDecodeError:
-                logger.error(f"無法解析 {self.data_file}，將創建新文件")
+                logger.error(f"無法解析 {self.data_file}，將建立新檔案")
                 return {}
         return {}
     
     def _save_seen_posts(self):
-        """保存已經發送通知的貼文ID"""
+        """儲存已經發送通知的貼文ID"""
         with open(self.data_file, 'w', encoding='utf-8') as f:
             json.dump(self.seen_posts, f, ensure_ascii=False, indent=2)
     
     def _calculate_jaccard_similarity(self, str1, str2):
-        """計算兩個字符串的 Jaccard 相似度"""
+        """計算兩個字串的 Jaccard 相似度"""
         # 將字符串轉換為單詞集合
         set1 = set(re.findall(r'\w+', str1.lower()))
         set2 = set(re.findall(r'\w+', str2.lower()))
@@ -94,7 +94,7 @@ class TruthSocialMonitor:
         return False
 
     def _extract_posts_from_page(self, page, source_identifier):
-        """從頁面提取貼文"""
+        """從頁面擷取貼文"""
         posts = []
         
         # 嘗試不同的選擇器找出貼文元素
@@ -127,14 +127,14 @@ class TruthSocialMonitor:
         # 處理找到的元素
         for i, element in enumerate(post_elements):
             try:
-                # 提取元素內容
+                # 擷取元素內容
                 text_content = element.inner_text().strip()
                 
                 # 只處理足夠長的內容，這可能是一個實際貼文
                 if len(text_content) < 50:
                     continue
                 
-                # 只關注特定用戶的貼文
+                # 只關注特定使用者的貼文
                 if ("Trump" not in text_content and 
                     "@realDonaldTrump" not in text_content):
                     continue
@@ -301,7 +301,7 @@ class TruthSocialMonitor:
                     timezone_id="America/New_York",
                     permissions=["geolocation"],
                     has_touch=False,
-                    # 添加額外的HTTP頭部
+                    # 加入額外的HTTP標頭
                     extra_http_headers={
                         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
                         "Accept-Language": "en-US,en;q=0.5",
@@ -541,10 +541,10 @@ def main():
     """主函數，設置定時任務"""
     monitor = TruthSocialMonitor()
     
-    # 首次啟動立即運行一次
+    # 首次啟動立即執行一次
     monitor.check_and_notify()
     
-    # 定義檢查函數
+    # 定義檢查函式
     def scheduled_check():
         monitor.check_and_notify()
 
